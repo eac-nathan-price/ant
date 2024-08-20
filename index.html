@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1"></script>
+
+<!-- START CSS START CSS START CSS -->
+<style>
+
+@font-face {
+    font-family: px;
+    src: url(px-v3.ttf);
+}
+
+:root {
+    /*font-family: px;*/
+    font-family: "Press Start 2P", system-ui;
+    line-height: 1.5;
+    color: rgba(255, 255, 255, 0.9);
+    background-color: #242424;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+html, body {
+    padding: 0;
+    margin: 0;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+}
+
+a {
+    color: rgba(128, 128, 255, 0.9);
+}
+a:hover {
+    text-decoration: underline;
+}
+
+</style>
+<!-- END CSS END CSS END CSS -->
+</head>
+
+<!-- START HTML START HTML START HTML -->
+
+<body style="display: flex; justify-content: space-between;">
+    <div style="width: 35%; postiion: absolute; top: 0px; z-index: 1; max-height: 100%; overflow-y: auto; margin-left: 24px;">
+        <div id="help">
+            <h1 style="text-align: center;">Dichthadiiformic</h1>
+            <h2 style="text-align: center;">GMTK Game Jam 2024 - Built 2 Scale</h2>
+            <p style="text-align: justify;">SETUP:<br>Please <a onclick="testPopups()">[click here]</a> to give permission for this site to create popups and verify they open in the top-left and bottom-right corners of the screen. Use only 1 monitor or things may break. This window should be maximized (but not fullscreen) for detection of mouse position.</p>
+            <p>CONTROLS:<br>mouse position - direct movement / attention<br>resize popup window - adjust influence<br>click - interact / quell</p>
+            <p style="text-align: justify;">INSTRUCTIONS:<br>You are the Ant Queen, and your mind controls the colony. Without your influence, drone ants will move randomly. Increase the size of a drone's window to increase your influence over it, but make sure no drone goes without attention for too long or they will become stressed and deteriorate.<br>All drones will be directed to move in the relative direction of the cursor. Have drones seek out food and return it to your body to produce more drone offspring.</p>
+            <p style="text-align: justify;">HINTS:<br>Drones can be directed by moving the cursor OR by moving their window to a different part of the screen.<br>Popups will automatically reopen to prevent accidental closes. All popups will be closed automatically or when the main tab is closed.</p>
+            <a onclick="hideHelp()">[Hide help]</a>
+        </div>
+        <div style="display: none; padding-top: 24px;" id="help-toggle">
+            <a onclick="showHelp()">[Show help]</a>
+        </div>
+    </div>
+    <div style="z-index: 1; margin: 24px; text-align: right;">
+        <a id="start" onclick="play()" style="font-size: 300%;">[START]</a>
+        <div id="stats" style="display: none; margin-right: 24px;">
+            <p style="font-size: 200%;">Score: <span id="score">0</span></p>
+            <p style="font-size: 200%;">Drones: <span id="drones">0</span></p>
+        </div>
+    </div>
+    
+
+<!-- END HTML END HTML END HTML -->
+
+<!-- START JS START JS START JS -->
+<script>
+
+// ----- Help Section -----
+const helpEl = document.querySelector('#help');
+const helpToggleEl = document.querySelector('#help-toggle');
+function hideHelp() {
+    helpEl.style.display = 'none';
+    helpToggleEl.style.display = 'block';
+}
+function showHelp() {
+    helpToggleEl.style.display = 'none';
+    helpEl.style.display = 'block';
+}
+
+const font = document.querySelector('link[rel="stylesheet"]');
+const style = document.querySelector('style');
+testedPopups = [];
+function testPopups() {
+  const pop1 = window.open("", "_blank", `left=${0},top=${0},width=200,height=200`);
+  pop1.document.title = 'Top Left';
+  pop1.document.head.appendChild(font.cloneNode(true));
+  pop1.document.head.appendChild(style.cloneNode(true));
+  pop1.document.body.outerHTML = `<body style="display: flex; align-items: center; justify-content: center;"><a onclick="window.opener.closeTests()">[close all]</a></body>`;
+
+  const pop2 = window.open("", "_blank", `left=${window.screen.availWidth - 200},top=${window.screen.availHeight - 200},width=200,height=200`);
+  pop2.document.title = 'Bottom Right';
+  pop2.document.head.appendChild(font.cloneNode(true));
+  pop2.document.head.appendChild(style.cloneNode(true));
+  pop2.document.body.outerHTML = pop1.document.body.outerHTML;
+
+  testedPopups.push(pop1, pop2);
+}
+function closeTests() {
+  for (let pop of testedPopups) {
+    try {
+      pop.close();
+    } catch(x) {}
+  }
+  testedPopups = [];
+}
+
+// ----- Start and Stats Section -----
+var isPlaying = false;
+var score = 0;
+var drones = 0;
+const startEl = document.querySelector('#start');
+const statsEl = document.querySelector('#stats');
+const scoreEl = document.querySelector('#score');
+const dronesEl = document.querySelector('#drones');
+
+function play() {
+    startEl.style.display = 'none';
+    statsEl.style.display = 'block';
+    isPlaying = true;
+    spawn();
+    setTimeout(spawn, 1000);
+    setTimeout(spawn, 2000);
+    setTimeout(addScore, 5000);
+}
+
+function addScore() {
+    score += drones;
+    setTimeout(addScore, 5000);
+}
+
+class Ant {
+    constructor() {
+        drones++;
+        this.width = getRandomInt(200, window.screen.availWidth / 2);
+        this.height = getRandomInt(200, window.screen.availHeight / 2);
+        this.left = getRandomInt(0, window.screen.availWidth - this.width);
+        this.top = getRandomInt(0, window.screen.availHeight - this.height);
+        this.name = getRandomElement(names);
+        this.hp = 100;
+        this.max = 100;
+        this.food = 0;
+        this.stress = 0;
+        this.x = 0;
+        this.y = 0;
+        this.a = 0;
+        this.busy = true;
+        this.intensity = 1;
+        this.cd = 0;
+    }
+    update() {
+        if (this.busy) return;
+
+        const now = Date.now();
+        if (now > this.stressTime) {
+            this.stress++;
+            this.stressTime = now + getRandomInt(1000, 5000);
+        }
+
+        this.left = this.pop.screenX;
+        this.top = this.pop.screenY;
+        this.width = this.pop.innerWidth;
+        this.height = this.pop.innerHeight;
+
+        const area = this.width * this.height;
+        const screenArea = window.screen.availWidth * window.screen.availHeight;
+        const ratio = area / screenArea;
+        const xRatio = this.width / window.screen.availWidth;
+        const yRatio = this.height / window.screen.availHeight;
+        const newHp = Math.ceil(xRatio * 100) + Math.ceil(yRatio * 100) + Math.ceil(ratio * 100);
+
+        this.hp = Math.round(newHp * this.hp / this.max);
+        this.max = newHp;
+
+        this.hpEl.innerText = this.hp;
+        this.maxEl.innerText = this.max;
+        this.stressEl.innerText = this.stress;
+        this.stressParentEl.style.color = this.stress >= 90 ? 'red' : 'white'
+        this.intensity = 1 / ratio;
+    }
+    giveAttention() {
+        this.stressTime = Date.now() + getRandomInt(5000, 9999)
+    }
+    quell() {
+        const now = Date.now();
+        if (now < this.cd) return;
+        if (this.stress > 0) this.stress--;
+        this.cd = now + 1000;
+    }
+}
+
+ants = [];
+function spawn(ant = new Ant()) {
+    const pop = window.open("", "_blank", `left=${ant.left},top=${ant.top},width=${ant.width},height=${ant.height}`);
+    pop.document.head.appendChild(font.cloneNode(true));
+    pop.document.head.appendChild(style.cloneNode(true));
+    pop.document.body.outerHTML = `
+    <body style="user-select: none; margin: 0; padding: 0; height: 100%; width: 100%;" onclick="ant.quell()">
+        <div style="position: absolute; top: 0; z-index: 1; font-size: 75%; display: flex; justify-content: space-around; flex-wrap: wrap; gap: 8px; align-content: flex-start; width: 100%;">
+            <div>HP: <span id="hp">100</span> / <span id="max">100</span></div>
+            <div id="stress-parent">Stress: <span id="stress">0</span> / 100</div>
+        </div>
+        <canvas id="canvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0;"></canvas>
+    </body>
+`;
+    if (ant.pop) {
+        try {
+            ant.pop.close();
+        } catch (x) {}
+    }
+    ant.pop = pop;
+    pop.document.title = ant.name;
+    pop.ant = ant;
+
+    pop.checkReady = () => {
+        let canvasEl = pop.document.getElementById('canvas');
+        if (canvasEl && approx(ant.left, pop.screenX) && approx(ant.top, pop.screenY) && approx(ant.width, pop.innerWidth) && approx(ant.height, pop.innerHeight)) {
+            ant.busy = false;
+            ant.hpEl = pop.document.querySelector('#hp');;
+            ant.maxEl = pop.document.querySelector('#max');
+            ant.stressEl = pop.document.querySelector('#stress');
+            ant.stressParentEl = pop.document.querySelector('#stress-parent');
+            ant.stressTime = Date.now() + getRandomInt(1000, 9999);
+
+            let config = {
+                type: Phaser.CANVAS,
+                scene: {
+                    preload: function() {
+                        this.load.image('dirt', 'pexels-alfomedeiros-19371356.jpg');
+                    },
+                    create: function() {
+                        this.tilesprite = this.add.tileSprite(0, 0, 6048, 4024, 'dirt').setPipeline('Light2D');
+                        
+                        // let graphics = this.add.graphics();
+                        // graphics.fillStyle(0x000000, 1);
+                        // graphics.fillEllipse(50, 45, 50, 20);
+                    },
+                    update: function() {
+                        this.cameras.main.setScroll(3024, 2012);
+                    }
+                },
+                scale: {
+                    mode: Phaser.Scale.ENVELOP,
+                    autoCenter: Phaser.Scale.CENTER_BOTH,
+                    width: 100,
+                    height: 180,
+                },
+                width: 100,
+                height: 100,
+                canvas: canvasEl
+            };
+            let game = new Phaser.Game(config);
+        } else setTimeout(pop.checkReady, 50);
+    };
+    setTimeout(pop.checkReady, 50);
+    pop.onbeforeunload = (event) => {
+        ant.busy = true;
+        if (ant.hp > 0) setTimeout(() => { spawn(ant); }, 100);
+        else ants.splice(ants.indexOf(ant), 1);
+    };
+    pop.onmousemove = (event) => {
+        if (pop.stressTimeout) clearTimeout(pop.stressTimeout);
+        ant.giveAttention();
+        window.onmousemove(event);
+    };
+
+    ants.push(ant);
+}
+
+onbeforeunload = (event) => {
+    for (let ant of ants) {
+        try {
+            ant.pop.close();
+        } catch(x) {}
+    }
+};
+
+function approx(a, b) {
+    return Math.abs(a - b) < 10;
+}
+
+function getRandomInt(min, max) {
+    min = Math.ceil(min);
+    max = Math.floor(max);
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+function getRandomElement(arr) {
+    const randomIndex = Math.floor(Math.random() * arr.length);
+    return arr[randomIndex];
+}
+
+
+// ----- Queen Section -----
+var pupilX = 0;
+var pupilY = 0;
+var antler1A = 0;
+var antler2A = 0;
+
+// Create a new Phaser game instance
+let config = {
+  type: Phaser.AUTO,
+  scene: {
+      preload: preload,
+      create: create,
+      update: update
+  },
+  width: 1000,
+  height: 1000,
+  // Allows Phaser canvas to be responsive to browser sizing
+  // scale: {
+  //   mode: Phaser.Scale.ENVELOP,
+  //   autoCenter: Phaser.Scale.CENTER_BOTH,
+  //   width: 1920,
+  //   height: 1080,
+  // },
+  canvasStyle: 'position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0;'
+};
+
+let game = new Phaser.Game(config);
+
+function preload() {
+  for (let img of ['antler-l1', 'antler-l2', 'antler-l3', 'antler-l4', 'antler-r1', 'antler-r2', 'antler-r3', 'antler-r4', 'body-1', 'body-2', 'body-3', 'body-4', 'butt-1', 'butt-2', 'butt-3', 'butt-4', 'head', 'leg-bl1', 'leg-bl2', 'leg-bl3', 'leg-br1', 'leg-br2', 'leg-br3', 'leg-ml1', 'leg-ml2', 'leg-ml3', 'leg-mr1', 'leg-mr2', 'leg-mr3', 'leg-ul1', 'leg-ul2', 'leg-ul3', 'leg-ur1', 'leg-ur2', 'leg-ur3', 'mouth-l', 'mouth-r', 'pupil']) {
+    this.load.image(img, `ant-queen/${img}.png`);
+  }
+  this.load.image('dirt', 'dirt.png');
+}
+
+function create() {
+  this.tilesprite = this.add.tileSprite(0, 0, 2000, 2000, 'dirt').setPipeline('Light2D');
+
+  // Create the body parts and set their origin
+  head = this.add.sprite(0, 0, 'head').setOrigin(0.5, 1).setPipeline('Light2D');;
+  mouth_l = this.add.sprite(-28, -105, 'mouth-l').setOrigin(0, 1).setPipeline('Light2D');;
+  mouth_r = this.add.sprite(43, -89, 'mouth-r').setOrigin(1, 1).setPipeline('Light2D');;
+  pupil_l = this.add.sprite(0, 0, 'pupil').setPipeline('Light2D');;
+  _pupil_l = this.add.container(-51, -66, pupil_l);
+  pupil_r = this.add.sprite(0, 0, 'pupil').setPipeline('Light2D');;
+  _pupil_r = this.add.container(49, -58, pupil_r);
+
+  redLight = this.lights.addLight(0, 0, 60, 0xff0000, 2.0);
+  greenLight = this.lights.addLight(0, 0, 60, 0x00ff00, 2.0);
+  spotLight = this.lights.addLight(500, 500, 1500, 0xffffff, 1.0)
+  spotLight2 = this.lights.addLight(500, 900, 1500, 0xffffff, 1.0)
+  this.lights.enable().setAmbientColor(0x666666);
+
+  antler_l4 = this.add.sprite(0, 0, 'antler-l4');
+  _antler_l4 = this.add.container(-3, -60, [antler_l4]);
+  antler_l3 = this.add.sprite(0, 0, 'antler-l3').setOrigin(1, 1).setPipeline('Light2D');
+  _antler_l3 = this.add.container(-9, -88, [_antler_l4, antler_l3]);
+  antler_l2 = this.add.sprite(0, 0, 'antler-l2').setOrigin(1, 1).setPipeline('Light2D');;
+  _antler_l2 = this.add.container(-105, -40, [_antler_l3, antler_l2]);
+  antler_l1 = this.add.sprite(0, 0, 'antler-l1').setOrigin(1, 1).setPipeline('Light2D');;
+  _antler_l1 = this.add.container(-25, -80, [_antler_l2, antler_l1]);
+
+  antler_r4 = this.add.sprite(0, 0, 'antler-r4');
+  _antler_r4 = this.add.container(4, -75, [antler_r4]);
+  antler_r3 = this.add.sprite(0, 0, 'antler-r3').setOrigin(0, 1).setPipeline('Light2D');;
+  _antler_r3 = this.add.container(6, -80, [_antler_r4, antler_r3]);
+  antler_r2 = this.add.sprite(0, 0, 'antler-r2').setOrigin(0, 1).setPipeline('Light2D');;
+  _antler_r2 = this.add.container(101, -43, [_antler_r3, antler_r2]);
+  antler_r1 = this.add.sprite(0, 0, 'antler-r1').setOrigin(0, 1).setPipeline('Light2D');;
+  _antler_r1 = this.add.container(25, -72, [_antler_r2, antler_r1]);
+
+  _head = this.add.container(0, 0, [mouth_l, mouth_r, head, _pupil_l, _pupil_r, _antler_l1, _antler_r1]);
+  _neck = this.add.container(0, -115, _head);
+
+  body1 = this.add.sprite(0, 0, 'body-1').setOrigin(0.5, 1).setPipeline('Light2D');;
+  _body1 = this.add.container(0, 0, [body1, _neck]);
+  _body1b = this.add.container(0, -58, _body1);
+  body2 = this.add.sprite(0, 0, 'body-2').setOrigin(0.5, 1).setPipeline('Light2D');;
+  _body2 = this.add.container(0, 0, [body2, _body1b]);
+  _body2b = this.add.container(0, -45, _body2);
+  body3 = this.add.sprite(0, 0, 'body-3').setOrigin(0.5, 1).setPipeline('Light2D');;
+  _body3 = this.add.container(0, 0, [body3, _body2b]);
+  _body3b = this.add.container(0, -45, _body3);
+  body4 = this.add.sprite(0, 0, 'body-4').setOrigin(0.5, 1).setPipeline('Light2D');;
+  _body4 = this.add.container(0, 0, [body4, _body3b]);
+  
+  butt4 = this.add.sprite(0, 0, 'butt-4').setOrigin(0.5, 0).setPipeline('Light2D');;
+  _butt4 = this.add.container(0, 66, [butt4]);
+  butt3 = this.add.sprite(0, 0, 'butt-3').setOrigin(0.5, 0).setPipeline('Light2D');;
+  _butt3 = this.add.container(0, 58, [_butt4, butt3]);
+  butt2 = this.add.sprite(0, 0, 'butt-2').setOrigin(0.5, 0).setPipeline('Light2D');;
+  _butt2 = this.add.container(0, 65, [_butt3, butt2]);
+  butt1 = this.add.sprite(0, 0, 'butt-1').setOrigin(0.5, 0).setPipeline('Light2D');;
+  _butt1 = this.add.container(0, -10, [_butt2, butt1]);
+
+  _body4b = this.add.container(500, 800, [_body4, _butt1]);
+
+  // Parent the head, arm, and leg to the body
+  //this.add.container(body.x, body.y, [body, head, arm, leg]);
+  //body.addChild(head);
+  this.tweens.add({
+    targets: [mouth_l],
+    angle: { from: -5, to: 5 },
+    duration: 5000,
+    yoyo: true,
+    repeat: -1,
+    ease: 'Sine.easeInOut'
+  });
+
+  this.tweens.add({
+    targets: [mouth_r],
+    angle: { from: 5, to: -5 },
+    duration: 5000,
+    yoyo: true,
+    repeat: -1,
+    ease: 'Sine.easeInOut'
+  });
+
+  this.tweens.add({
+    targets: [_antler_l3],
+    angle: { from: 5, to: -5 },
+    duration: 1234,
+    yoyo: true,
+    repeat: -1,
+    ease: 'Sine.easeInOut'
+  });
+
+  this.tweens.add({
+    targets: [_antler_r3],
+    angle: { from: -5, to: 5 },
+    duration: 1234,
+    yoyo: true,
+    repeat: -1,
+    ease: 'Sine.easeInOut'
+  });
+
+  this.tweens.add({
+    targets: [_head],
+    angle: { from: -5, to: -2 },
+    duration: 3456,
+    yoyo: true,
+    repeat: -1,
+    ease: 'Sine.easeInOut'
+  });
+
+  this.tweens.add({
+    targets: [butt1],
+    angle: { from: -1, to: 1 },
+    duration: 1000,
+    yoyo: true,
+    repeat: -1,
+    ease: 'Sine.easeInOut'
+  });
+
+  this.tweens.add({
+    targets: [butt2],
+    angle: { from: 1, to: -1 },
+    duration: 1776,
+    yoyo: true,
+    repeat: -1,
+    ease: 'Sine.easeInOut'
+  });
+
+  this.tweens.add({
+    targets: [butt3],
+    angle: { from: -1, to: 1 },
+    duration: 2048,
+    yoyo: true,
+    repeat: -1,
+    ease: 'Sine.easeInOut'
+  });
+  this.tweens.add({
+    targets: [butt3],
+    angle: { from: 1, to: -1 },
+    duration: 1492,
+    yoyo: true,
+    repeat: -1,
+    ease: 'Sine.easeInOut'
+  });
+}
+
+function update() {
+    dronesEl.innerText = drones;
+    scoreEl.innerText = score;
+    for (let ant of ants) ant.update();
+
+  // Rotate the body, which will also rotate all its children
+  //headContainer.rotation += 0.005;
+  pupil_l.x = pupilX;
+  pupil_l.y = pupilY;
+  pupil_r.x = pupilX;
+  pupil_r.y = pupilY;
+  _antler_l1.setRotation(-antler1A);
+  _antler_r1.setRotation(antler1A);
+  _antler_l2.setRotation(antler2A);
+  _antler_r2.setRotation(antler2A);
+  _head.y = antler1A * 10;
+  _neck.setRotation(antler2A/4);
+  _body1.setRotation(antler2A/8);
+  _body1.y = antler1A * 10;
+  _body2.setRotation(antler2A/8);
+  _body2.y = antler1A * 10;
+  _body3.setRotation(antler2A/12);
+  _body3.y = antler1A * 10;
+  _body4.setRotation(antler2A/12);
+  _body4.y = antler1A * 10;
+  _body4.x = antler2A * 10;
+
+  _butt1.setRotation(-antler2A/10);
+  _butt2.setRotation(-antler2A/10);
+  _butt3.setRotation(-antler2A/10);
+  _butt4.setRotation(-antler2A/10);
+  
+  // update lights
+  lMatrix = _antler_l4.getWorldTransformMatrix();
+  redLight.x = lMatrix.tx;
+  redLight.y = lMatrix.ty;
+  rMatrix = _antler_r4.getWorldTransformMatrix();
+  greenLight.x = rMatrix.tx;
+  greenLight.y = rMatrix.ty;
+  hMatrix = _head.getWorldTransformMatrix();
+  spotLight.x = hMatrix.tx;
+  spotLight.y = hMatrix.ty - 20;
+}
+
+onmousemove = function(mouse) {
+  let halfWidth = window.innerWidth / 2;
+  let halfHeight = window.innerHeight / 2;
+  let ox = window.screenX + halfWidth;
+  let oy = window.screenY + halfHeight;
+  let zone = halfWidth < halfHeight ? { min: halfWidth / 4, max: halfWidth } : { min: halfHeight / 4, max: halfHeight };
+  let dx = mouse.screenX - ox;
+  let dy = mouse.screenY - oy;
+  let distance = Math.sqrt(dx * dx + dy * dy);
+  let radius = Math.min(1, Math.max(0, (distance - zone.min) / (zone.max - zone.min))) * 2;
+  let angle = Math.atan2(dy, dx);
+  pupilX = radius * Math.cos(angle);
+  pupilY = radius * Math.sin(angle);
+  antler1A = 0.4 * dy / halfHeight;
+  antler2A = 0.4 * dx / halfWidth;
+  
+};
+
+// ----- Names List -----
+var names = [ "Liam", "Emma", "Noah", "Olivia", "William", "Ava", "James", "Isabella", "Logan", "Sophia", "Benjamin", "Mia", "Mason", "Charlotte", "Elijah", "Amelia", "Oliver", "Harper", "Jacob", "Evelyn", "Lucas", "Abigail", "Michael", "Emily", "Alexander", "Ella", "Ethan", "Elizabeth", "Daniel", "Camila", "Matthew", "Luna", "Aiden", "Sofia", "Henry", "Avery", "Joseph", "Mila", "Jackson", "Aria", "Samuel", "Scarlett", "Sebastian", "Penelope", "David", "Layla", "Carter", "Chloe", "Wyatt", "Victoria", "Jayden", "Madison", "John", "Eleanor", "Owen", "Grace", "Dylan", "Nora", "Luke", "Riley", "Gabriel", "Zoey", "Anthony", "Hannah", "Isaac", "Hazel", "Grayson", "Lily", "Jack", "Ellie", "Julian", "Violet", "Levi", "Lillian", "Christopher", "Zoe", "Joshua", "Stella", "Andrew", "Aurora", "Lincoln", "Natalie", "Mateo", "Emilia", "Ryan", "Everly", "Jaxon", "Leah", "Nathan", "Aubrey", "Aaron", "Willow", "Isaiah", "Addison", "Thomas", "Lucy", "Charles", "Audrey", "Caleb", "Bella", "Josiah", "Nova", "Christian", "Brooklyn", "Hunter", "Paisley", "Eli", "Savannah", "Jonathan", "Claire", "Connor", "Skylar", "Landon", "Isla", "Adrian", "Genesis", "Asher", "Naomi", "Cameron", "Elena", "Leo", "Caroline", "Theodore", "Eliana", "Jeremiah", "Anna", "Hudson", "Maya", "Robert", "Valentina", "Easton", "Ruby", "Nolan", "Kennedy", "Nicholas", "Ivy", "Ezra", "Ariana", "Colton", "Aaliyah", "Angel", "Cora", "Brayden", "Madelyn", "Jordan", "Alice", "Dominic", "Kinsley", "Austin", "Hailey", "Ian", "Gabriella", "Adam", "Allison", "Elias", "Gianna", "Jaxson", "Serenity", "Greyson", "Samantha", "Jose", "Sarah", "Ezekiel", "Autumn", "Carson", "Quinn", "Evan", "Eva", "Maverick", "Piper", "Bryson", "Sophie", "Jace", "Sadie", "Cooper", "Delilah", "Xavier", "Josephine", "Parker", "Nevaeh", "Roman", "Adeline", "Jason", "Arya", "Santiago", "Emery", "Chase", "Lydia", "Sawyer", "Clara", "Gavin", "Vivian", "Leonardo", "Madeline", "Kayden", "Peyton", "Ayden", "Julia", "Jameson", "Rylee", "Kevin", "Brielle", "Bentley", "Reagan", "Zachary", "Natalia", "Everett", "Jade", "Axel", "Athena", "Tyler", "Maria", "Micah", "Leilani", "Vincent", "Hadley", "Weston", "Melanie", "Miles", "Mackenzie", "Wesley", "Rose", "Nathaniel", "Alyssa", "Harrison", "Isabelle", "Brandon", "Melody", "Cole", "Eliza", "Declan", "Lyla", "Luis", "Katherine", "Braxton", "Aubree", "Damian", "Adalynn", "Silas", "Kylie", "Tristan", "Faith", "Ryder", "Mary", "Bennett", "Margaret", "George", "Ximena", "Emmett", "Iris", "Justin", "Alexandra", "Kai", "Jasmine", "Max", "Charlie", "Diego", "Amaya", "Luca", "Amara", "Ryker", "Taylor", "Carlos", "Isabel", "Maxwell", "Ashley", "Kingston", "Brianna", "Ivan", "Raelynn", "Maddox", "Bailey", "Juan", "Elsie", "Ashton", "Emerson", "Jayce", "Everleigh", "Rowan", "Genevieve", "Kaiden", "Maeve", "Giovanni", "Adalyn", "Eric", "Ryleigh", "Jesus", "Evangeline", "Calvin", "Valerie", "King", "Anastasia", "Abel", "Sloane", "Caden", "June", "Milo", "Alexa", "Lorenzo", "Lilly", "Alex", "Morgan", "August", "Kaylee", "Elliott", "Finn", "Archer", "Lennox", "Walker", "Jasper", "Emilio", "Brantley", "Corbin", "Oakley", "Cash", "Raymond", "Raphael", "Dante", "Bowen", "Hayes", "Cairo", "Rocco", "Devin", "Andre", "Javier", "Paxton", "Matteo", "Rhett", "Bodhi", "Frank", "Desmond", "Malcolm", "Kane", "Flynn", "Troy", "Zayn", "Marco", "Johnny", "Kendrick", "Reed", "Andy", "Gideon", "Damon", "Erik", "Alden", "Tatum", "Finley", "Quentin", "Romeo", "Beckett", "Zander", "Warren", "Kaiser", "Finnick", "Sterling", "Enzo", "Karter", "Jensen", "Kieran", "Jett", "Soren", "Carmelo", "Keanu", "Jase", "Harvey", "Colt", "Ernesto", "Keegan", "Nash", "Marlon", "Dallas", "Royce", "Alec", "Knox", "Blaine", "Boone", "Wade", "Graysen", "Ellis", "Ruben", "Curtis", "Asa", "Kye", "Emmitt", "Jamal", "Hendrix", "Maurice", "Judah", "Francis", "Zeke", "Malakai", "Kohen", "Gunner", "Case", "Gage", "Samson", "Jadon", "Roy", "Matthias", "Otto", "Jagger", "Leonel", "Colby", "Raul", "Atlas", "Bo", "Salvador", "Ramon", "Axton", "Jaxton", "Denver", "Vincenzo", "Benson", "Felix", "Lachlan", "Aarav", "Rhys", "Santana", "Castiel", "Layton", "Justice", "Franklin", "Harley", "Heath", "Cayson", "Ira", "Cillian", "Valentin", "Tanner", "Callum", "Landen", "Cassius", "Mohamed", "Sincere", "Santos", "Emanuel", "Johan", "Prince", "Wilder", "Skyler", "Dax", "Casen", "Yusuf", "Briggs", "Grey", "Ford", "Alonso", "Kylan", "Winston", "Harlan", "Jamison", "Ahmir", "Mauricio", "Edison", "Solomon", "Iker", "Lucian", "Rayan", "Jamir", "Jadiel", "Ephraim", "Ridge", "Broderick", "Ronan", "Kannon", "Bryant", "Leandro", "Anakin", "Vicente", "Guillermo", "Trent", "Emory", "Kason", "Kyson", "London", "Bruno", "Zaiden", "Maximo", "Eliseo", "Bronson", "Zakai", "Alistair", "Brycen", "Kolten", "Koa", "Brayan", "Nikolai", "Dominik", "Shepard", "Ayan", "Kamari", "Fletcher", "Baylor", "Dash", "Reese", "Huxley", "Jones", "Ares", "Ronin", "Marcel", "Kaison", "Stetson", "Axl", "Reign", "Uriah", "Chaim", "Aydin", "Noe", "Kole", "Crosby", "Dane", "Raylan", "Leighton", "Rayden", "Sonny", "Cason", "Lucca", "Frederick", "Niko", "Alfredo", "Cassian", "Devon", "Alaric", "Mekhi", "Abdiel", "Joziah", "Karsyn", "Stefan", "Alfred", "Wilson", "Fisher", "Madden", "Magnus", "Niklaus", "Casper", "Conrad", "Onyx", "Ignacio", "Trace", "Apollo", "Drew", "Gatlin", "Jabari", "Mac", "Kamryn", "Eugene", "Cristian", "Wesson", "Shiloh", "Tripp", "Westley", "Harlem", "Amias", "Dominick", "Thiago", "Rory", "Fox", "Kiaan", "Memphis", "Vance", "Kenzo", "Forest", "Foster", "Randy", "Jairo", "Hendrik", "Thatcher", "Tristen", "Briar", "Lyle", "Abner", "Titan", "Talon", "Crew", "Jay", "Koen", "Legend", "Quincy", "Titus", "Callen", "Forrest", "Yosef", "Armani", "Boden", "Yousef", "Marcos", "Reece", "Rex", "Otis", "Dior"];
+
+/*
+import classNames from "https://cdn.skypack.dev/classnames/bind";
+import * as Tone from "https://cdn.skypack.dev/tone";
+
+const makeSynths = (count) => {
+  // declare array to store synths
+  const synths = [];
+
+  // each synth can only play one note at a time.
+  // for simplicity, we'll create one synth for each note available
+  // this allows for easy polyphony (multiple notes playing at the same time)
+
+	// I'll be using a one octive F minor pentatonic scale
+  // so I'll need 6 synths
+  for (let i = 0; i < count; i++) {
+    // Documentation for Tone.Synth can be found here:
+    // https://tonejs.github.io/docs/r13/Synth
+
+    // I'm using an oscillator with a square wave and 8 partials
+    // because I like how it sounds.
+    //
+    // You could simply declare new Tone.Synth().toDestination()
+    //
+    // This would work just as well, but sound slightly different.
+    // Demo different oscillator settings here:
+    // https://tonejs.github.io/examples/oscillator
+    let synth = new Tone.Synth({
+      oscillator: {
+        type: "square8"
+      }
+    }).toDestination();
+   
+   
+    synths.push(synth);
+  }
+
+  return synths;
+};
+
+const makeGrid = (notes) => {
+  // our "notation" will consist of an array with 6 sub arrays
+  // each sub array corresponds to one row in our sequencer grid
+
+  // parent array to hold each row subarray
+  const rows = [];
+
+  for (const note of notes) {
+    // declare the subarray
+    const row = [];
+    // each subarray contains multiple objects that have an assigned note
+    // and a boolean to flag whether they are "activated"
+    // each element in the subarray corresponds to one eigth note
+    for (let i = 0; i < 8; i++) {
+      row.push({
+        note: note,
+        isActive: false
+      });
+    }
+    rows.push(row);
+  }
+
+  // we now have 6 rows each containing 16 eighth notes
+  return rows;
+};
+
+const synths = makeSynths(6);
+
+// declaring the notes for each row
+const notes = ["F4", "Eb4", "C4", "Bb3", "Ab3", "F3"];
+let grid = makeGrid(notes);
+let beat = 0;
+let playing = false;
+let started = false;
+
+const configLoop = () => {
+
+  const repeat = (time) => {
+    grid.forEach((row, index) => {
+      let synth = synths[index];
+      let note = row[beat];
+      if (note.isActive) {
+        synth.triggerAttackRelease(note.note, "8n", time);
+      }
+    });
+
+    beat = (beat + 1) % 8;
+  };
+
+  Tone.Transport.bpm.value = 120;
+  Tone.Transport.scheduleRepeat(repeat, "8n");
+};
+
+const makeSequencer = () => {
+  const sequencer = document.getElementById("sequencer");
+  grid.forEach((row, rowIndex) => {
+    const seqRow = document.createElement("div");
+    seqRow.id = `rowIndex`;
+    seqRow.className = "sequencer-row";
+
+    row.forEach((note, noteIndex) => {
+      const button = document.createElement("button");
+      button.className = "note"
+      button.addEventListener("click", function(e) {
+        handleNoteClick(rowIndex, noteIndex, e);
+      });
+
+      seqRow.appendChild(button);
+    });
+
+    sequencer.appendChild(seqRow);
+  });
+};
+
+const handleNoteClick = (clickedRowIndex, clickedNoteIndex, e) => {
+  grid.forEach((row, rowIndex) => {
+    row.forEach((note, noteIndex) => {
+      if (clickedRowIndex === rowIndex && clickedNoteIndex === noteIndex) {
+        note.isActive = !note.isActive;
+        e.target.className = classNames(
+          "note", 
+          { "note-is-active": !!note.isActive }, 
+          { "note-not-active": !note.isActive }
+        );
+      }
+    });
+  });
+};
+
+const configPlayButton = () => {
+  const button = document.getElementById("play-button");
+  button.addEventListener("click", (e) => {
+    if (!started) {
+      Tone.start();
+      Tone.getDestination().volume.rampTo(-10, 0.001)
+      configLoop();
+      started = true;
+    }
+
+    if (playing) {
+      e.target.innerText = "Play";
+      Tone.Transport.stop();
+      playing = false;
+    } else {
+      e.target.innerText = "Stop";
+      Tone.Transport.start();
+      playing = true;
+    }
+  });
+};
+
+// configPlayButton();
+// makeSequencer();
+window.addEventListener("DOMContentLoaded", () => {
+  configPlayButton();
+	makeSequencer();
+});
+*/
+
+</script>
+<!-- END JS END JS END JS -->
+
+</body>
+</html>
